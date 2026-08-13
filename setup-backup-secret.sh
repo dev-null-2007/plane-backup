@@ -63,14 +63,14 @@ RESTIC_REPOSITORY="b2:${B2_BUCKET}:${REPO_PATH}"
 echo "Creating/updating Secret '${SECRET_NAME}' in namespace '${NAMESPACE}'..."
 echo "  RESTIC_REPOSITORY=${RESTIC_REPOSITORY}"
 
-kubectl create secret generic "${SECRET_NAME}" \
+microk8s kubectl create secret generic "${SECRET_NAME}" \
   --namespace "${NAMESPACE}" \
   --from-literal=B2_ACCOUNT_ID="${B2_ACCOUNT_ID}" \
   --from-literal=B2_ACCOUNT_KEY="${B2_ACCOUNT_KEY}" \
   --from-literal=RESTIC_PASSWORD="${RESTIC_PASSWORD}" \
   --from-literal=RESTIC_REPOSITORY="${RESTIC_REPOSITORY}" \
   --dry-run=client -o yaml \
-  | kubectl apply -f - >/dev/null
+  | microk8s kubectl apply -f - >/dev/null
 
 echo "done."
 echo
@@ -78,5 +78,5 @@ echo "NOTE: if this rotated existing credentials mid-cycle, the running"
 echo "CronJob's next scheduled run will pick up the new Secret automatically,"
 echo "but any Job already in flight was started with the old values. If you"
 echo "need the new credentials to take effect immediately, re-trigger the"
-echo "CronJob now: kubectl create job --from=cronjob/plane-backup" \
+echo "CronJob now: microk8s kubectl create job --from=cronjob/plane-backup" \
      "plane-backup-manual-\$(date +%s) -n ${NAMESPACE}"
