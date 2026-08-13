@@ -29,4 +29,6 @@ COPY restore-preflight.sh /usr/local/bin/restore-preflight.sh
 COPY restore.sh /usr/local/bin/restore.sh
 RUN chmod +x /usr/local/bin/backup.sh /usr/local/bin/restore-preflight.sh /usr/local/bin/restore.sh
 
+COPY queries/ /usr/local/share/plane-backup/queries/
+
 ENTRYPOINT []

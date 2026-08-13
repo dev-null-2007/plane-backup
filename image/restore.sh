@@ -16,6 +16,7 @@ POSTGRES_PORT="${POSTGRES_PORT:-5432}"
 RESTIC_HOST="${RESTIC_HOST:-plane-ce-prod}"
 SNAPSHOT_ID="${SNAPSHOT_ID:-latest}"
 RESTORE_SCRATCH_DIR="${RESTORE_SCRATCH_DIR:-/restore}"
+CONTENT_ROW_COUNT_SQL="${CONTENT_ROW_COUNT_SQL:-/usr/local/share/plane-backup/queries/content_row_count.sql}"
 
 export RESTIC_REPOSITORY RESTIC_PASSWORD B2_ACCOUNT_ID B2_ACCOUNT_KEY
 
@@ -42,9 +43,9 @@ echo
 echo "[restore] summary"
 echo "  snapshot restored: ${SNAPSHOT_ID} (host=${RESTIC_HOST})"
 ROW_COUNT=$(PGPASSWORD="${POSTGRES_PASSWORD}" psql -h "${POSTGRES_HOST}" -p "${POSTGRES_PORT}" \
-  -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -tAc \
-  "select coalesce(sum(n_live_tup), 0) from pg_stat_user_tables" 2>/dev/null || echo "unknown")
-echo "  postgres live rows (post-restore): ${ROW_COUNT}"
+  -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -tA \
+  -f "${CONTENT_ROW_COUNT_SQL}" 2>/dev/null || echo "unknown")
+echo "  postgres content rows (post-restore, excludes framework tables): ${ROW_COUNT}"
 OBJECT_COUNT=$(mc ls --recursive "targetminio/${AWS_S3_BUCKET_NAME}" 2>/dev/null | wc -l || echo "unknown")
 echo "  minio objects mirrored (post-restore): ${OBJECT_COUNT}"
 echo

@@ -18,6 +18,12 @@
 #   SNAPSHOT_ID (default "latest")
 #   RESTORE_FORCE=1 to allow restoring into a non-empty target database
 #   RESTORE_SCRATCH_DIR (default /restore) - disk space is checked here
+#
+# The "is the target empty" check counts rows in content tables only
+# (excluding Django/DRF/Celery framework and Plane instance-config tables,
+# which are populated the instant migrations finish, before any real
+# onboarding) via image/queries/content_row_count.sql - see that file's
+# header for how the excluded-table list was derived.
 
 set -uo pipefail
 
@@ -31,6 +37,7 @@ RESTIC_HOST="${RESTIC_HOST:-plane-ce-prod}"
 SNAPSHOT_ID="${SNAPSHOT_ID:-latest}"
 RESTORE_FORCE="${RESTORE_FORCE:-0}"
 RESTORE_SCRATCH_DIR="${RESTORE_SCRATCH_DIR:-/restore}"
+CONTENT_ROW_COUNT_SQL="${CONTENT_ROW_COUNT_SQL:-/usr/local/share/plane-backup/queries/content_row_count.sql}"
 
 export RESTIC_REPOSITORY RESTIC_PASSWORD B2_ACCOUNT_ID B2_ACCOUNT_KEY
 
@@ -73,13 +80,13 @@ if ! PGPASSWORD="${POSTGRES_PASSWORD}" psql -h "${POSTGRES_HOST}" -p "${POSTGRES
       -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -tAc 'select 1' >/dev/null 2>&1; then
   FAILURES+=("cannot connect to target Postgres ${POSTGRES_DB}@${POSTGRES_HOST}:${POSTGRES_PORT} - confirm the fresh plane-app chart install has already run its own db/role init")
 else
-  LIVE_ROWS=$(PGPASSWORD="${POSTGRES_PASSWORD}" psql -h "${POSTGRES_HOST}" -p "${POSTGRES_PORT}" \
-    -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -tAc \
-    "select coalesce(sum(n_live_tup), 0) from pg_stat_user_tables" 2>/dev/null || echo "")
-  if [ -z "${LIVE_ROWS}" ]; then
-    FAILURES+=("could not determine whether target database already has data (pg_stat_user_tables query failed)")
-  elif [ "${LIVE_ROWS}" -gt 0 ] && [ "${RESTORE_FORCE}" != "1" ]; then
-    FAILURES+=("target database ${POSTGRES_DB} already has data (~${LIVE_ROWS} live rows across user tables) - refusing to restore over it. Set RESTORE_FORCE=1 to override.")
+  CONTENT_ROWS=$(PGPASSWORD="${POSTGRES_PASSWORD}" psql -h "${POSTGRES_HOST}" -p "${POSTGRES_PORT}" \
+    -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -tA \
+    -f "${CONTENT_ROW_COUNT_SQL}" 2>/dev/null || echo "")
+  if [ -z "${CONTENT_ROWS}" ]; then
+    FAILURES+=("could not determine whether target database already has data (content-row-count query failed)")
+  elif [ "${CONTENT_ROWS}" -gt 0 ] && [ "${RESTORE_FORCE}" != "1" ]; then
+    FAILURES+=("target database ${POSTGRES_DB} already has data (~${CONTENT_ROWS} rows in content tables, excluding Django/Celery/instance-config framework tables) - refusing to restore over it. Set RESTORE_FORCE=1 to override.")
   fi
 fi
 

@@ -230,11 +230,16 @@ instead of `latest`.
   credentials/bucket in the Secret are wrong — re-run
   `setup-backup-secret.sh` with correct values.
 - **Preflight's "target database already has data" check trips on a
-  supposedly-empty instance**: it currently sums `n_live_tup` across *all*
-  user tables, which also counts Django/DRF framework bookkeeping
-  (`auth_permission`, `django_content_type`, `django_migrations`, etc.)
-  that exists the instant migrations finish, before any real onboarding
-  happens. Run `./scripts/check_table_rows.py -n <namespace>` (needs only
-  `kubectl` and `python3` — no local SQL client) to see the per-table
-  breakdown and confirm whether the count is framework noise or real data
-  before deciding to override with `RESTORE_FORCE`.
+  supposedly-empty instance**: as of `image/queries/content_row_count.sql`,
+  it counts real `COUNT(*)` rows in content tables only, excluding known
+  Django/DRF/Celery framework and Plane instance-config tables
+  (`auth_permission`, `django_content_type`, `django_migrations`,
+  `instance_configurations`, `django_celery_beat_*`, etc.) that are
+  populated the instant migrations finish, before any real onboarding
+  happens — those alone can total 700+ rows on a genuinely empty instance.
+  If this still trips unexpectedly (e.g. after a Plane/chart upgrade
+  introduces a new framework table not on that excluded list), run
+  `./scripts/check_table_rows.py -n <namespace>` (needs only `kubectl` and
+  `python3` — no local SQL client) to see the per-table breakdown, and
+  extend the excluded-table list in `content_row_count.sql` if a new
+  framework table needs adding.

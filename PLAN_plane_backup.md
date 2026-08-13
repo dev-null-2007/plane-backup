@@ -251,11 +251,24 @@ the friction this is meant to avoid):
    - confirms the target database exists (i.e. the fresh `plane-app` chart
      install has already run its own init — this job never creates
      databases/roles, only restores into ones the chart already made), and
-   - checks whether the `plane` schema already has data (e.g. row count on
-     a known core table). If it's non-empty, **abort** unless an explicit
-     `RESTORE_FORCE=1` env var/flag is set — this is the guard against
-     silently clobbering a live, populated instance by pointing the job at
-     the wrong target.
+   - checks whether the `plane` schema already has data. If it's non-empty,
+     **abort** unless an explicit `RESTORE_FORCE=1` env var/flag is set —
+     this is the guard against silently clobbering a live, populated
+     instance by pointing the job at the wrong target.
+     **Implementation note (learned during testing):** this can't be a
+     blanket row-count sum across all tables — Django/DRF/Celery framework
+     tables (`auth_permission`, `django_content_type`, `django_migrations`,
+     `instance_configurations`, `django_celery_beat_*`) are populated the
+     instant migrations finish and can total 700+ rows before any real
+     onboarding, which tripped the guard on a genuinely fresh test
+     instance. It also can't rely on `pg_stat_user_tables.n_live_tup` at
+     all — that's an autovacuum/ANALYZE-driven estimate, confirmed stale
+     (reading as 0, or absent from the stats view entirely) for
+     rarely-touched tables on a real production instance during testing,
+     which could just as easily mask genuine content. The implemented fix
+     (`image/queries/content_row_count.sql`) uses real `COUNT(*)` restricted
+     to an evidence-derived excluded-table list, verified against both a
+     real production instance and a simulated fresh instance.
 4. **MinIO reachable and bucket exists.** `mc alias set` + `mc ls` against
    the target endpoint/bucket succeeds (catches: wrong endpoint, bucket not
    yet created by the target chart's `minio-bucket` Job, bad creds).
