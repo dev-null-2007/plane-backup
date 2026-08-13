@@ -4,7 +4,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository state
 
-This repo currently contains only `PLAN_plane_backup.md` — an implementation plan, not yet any code. There is no build, lint, or test tooling yet because nothing has been implemented. Work here starts with turning the plan into: a Dockerfile, a secret-bootstrap shell script, and Kubernetes manifests (Namespace, Secret, CronJob, restore Job). As those materialize, this file should be updated with the real commands to build the image, apply manifests, and run any tests.
+Implementation is in progress. `image/` has the backup/restore container image and its three driver scripts; `setup-backup-secret.sh` and the k8s manifests (Namespace, Secret, CronJob, restore Job) are not yet written — see §11 of `PLAN_plane_backup.md` for the live checklist.
+
+### Building and testing the image
+
+```bash
+cd image
+docker build -t plane-backup:test .
+docker run --rm plane-backup:test sh -c 'restic version; pg_dump --version; mc --version'
+```
+
+There's no k8s cluster access from this environment, so the CronJob/Job manifests and the scripts' behavior against real Postgres/MinIO/B2 endpoints are unverified — they need a real test run against the cluster (or a scratch namespace) before being trusted. `bash -n <script>.sh` is a fast local syntax check for the driver scripts in `image/`.
 
 The plan document itself notes it was originally drafted for convenience inside another project (`task-tracker`, which has visibility into the deployed `plane-ce` Helm chart) and has since been moved into this repo, `plane-backup`, which is its permanent home — the Dockerfile, scripts, and k8s manifests described below belong directly in this repo, not in `task-tracker` or elsewhere.
 

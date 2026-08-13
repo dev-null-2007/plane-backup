@@ -350,11 +350,16 @@ confidence). Options, cheapest first:
 ## 11. Implementation checklist
 
 - [x] Decide final home for this capability — this repo (`plane-backup`).
-- [ ] Write the backup container image (Dockerfile: alpine + restic + mc +
-      postgresql-client + driver script).
+- [x] Write the backup container image (`image/Dockerfile`: alpine + restic
+      + mc + postgresql15-client + `backup.sh`/`restore-preflight.sh`/
+      `restore.sh` driver scripts). Builds clean; `pg_dump`/`pg_restore`
+      client version (15.18) matches the assumed server major version (15)
+      — still needs re-confirming against the live StatefulSet per §2.
 - [ ] Write `setup-backup-secret.sh`.
 - [ ] Write k8s manifests: Secret (created by script, not committed),
-      CronJob, any RBAC if scope changes later.
+      CronJob, restore Job (using `image/restore-preflight.sh` as
+      initContainer and `image/restore.sh` as the main container), any RBAC
+      if scope changes later.
 - [ ] Create the B2 bucket + application key (scoped to that bucket only,
       not a master key) in the Backblaze console.
 - [ ] Run `setup-backup-secret.sh` once to bootstrap.
