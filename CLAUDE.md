@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository state
 
-Implementation is in progress. `image/` has the backup/restore container image and its three driver scripts; `setup-backup-secret.sh` and the k8s manifests (Namespace, Secret, CronJob, restore Job) are not yet written — see §11 of `PLAN_plane_backup.md` for the live checklist.
+Implementation is in progress. `image/` has the backup/restore container image and its three driver scripts; `setup-backup-secret.sh` (repo root) creates/rotates the B2/restic credentials Secret. The k8s manifests (Namespace, Secret, CronJob, restore Job) are not yet written — see §11 of `PLAN_plane_backup.md` for the live checklist.
 
 ### Building and testing the image
 

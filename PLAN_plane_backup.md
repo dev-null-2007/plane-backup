@@ -355,7 +355,11 @@ confidence). Options, cheapest first:
       `restore.sh` driver scripts). Builds clean; `pg_dump`/`pg_restore`
       client version (15.18) matches the assumed server major version (15)
       — still needs re-confirming against the live StatefulSet per §2.
-- [ ] Write `setup-backup-secret.sh`.
+- [x] Write `setup-backup-secret.sh` (repo root, alongside where the k8s
+      manifests will live). Defaults `--namespace` to `plane-ce` per §5's
+      revised decision. Validated: fails fast with no partial secret when
+      required args are missing, and the `create --dry-run=client -o yaml |
+      apply` idempotent pattern was exercised against a stub `kubectl`.
 - [ ] Write k8s manifests: Secret (created by script, not committed),
       CronJob, restore Job (using `image/restore-preflight.sh` as
       initContainer and `image/restore.sh` as the main container), any RBAC
