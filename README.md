@@ -229,3 +229,12 @@ instead of `latest`.
   never initialized (first backup run does this automatically) or the B2
   credentials/bucket in the Secret are wrong — re-run
   `setup-backup-secret.sh` with correct values.
+- **Preflight's "target database already has data" check trips on a
+  supposedly-empty instance**: it currently sums `n_live_tup` across *all*
+  user tables, which also counts Django/DRF framework bookkeeping
+  (`auth_permission`, `django_content_type`, `django_migrations`, etc.)
+  that exists the instant migrations finish, before any real onboarding
+  happens. Run `./scripts/check_table_rows.py -n <namespace>` (needs only
+  `kubectl` and `python3` — no local SQL client) to see the per-table
+  breakdown and confirm whether the count is framework noise or real data
+  before deciding to override with `RESTORE_FORCE`.
