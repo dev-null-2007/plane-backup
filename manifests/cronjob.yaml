@@ -38,6 +38,13 @@ spec:
                     name: plane-app-pgdb-secrets
                 - secretRef:
                     name: plane-app-doc-store-secrets
+              env:
+                # Lets backup.sh's POSTGRES_HOST default target this pod's
+                # own namespace instead of a hardcoded one.
+                - name: POD_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
               volumeMounts:
                 - name: scratch
                   mountPath: /backup

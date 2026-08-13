@@ -144,10 +144,11 @@ main `restore` container never starts and **nothing is touched**.
 ### Restoring into a secondary/arbitrary instance (e.g. a test restore drill)
 
 This is the useful path for proving the backup is actually usable without
-touching production. The restore Job's defaults assume it's restoring into
-`plane-ce` in the same cluster it's running in — for a secondary instance
-you need to point it at that instance's namespace, Postgres, and MinIO
-instead.
+touching production. `POSTGRES_HOST` and `AWS_S3_ENDPOINT_URL` both default
+to *whatever namespace the pod is actually running in* (via the Downward
+API `POD_NAMESPACE` env var wired into `manifests/restore-job.yaml`), so a
+same-cluster restore into a different namespace needs no manual host
+overrides — just point the Job at that namespace.
 
 1. **Stand up the secondary Plane CE instance** (different namespace, e.g.
    `plane-ce-test`, or a different cluster entirely) via its own
@@ -175,23 +176,20 @@ instead.
    cp manifests/restore-job.yaml /tmp/plane-restore-test.yaml
    ```
    Edit `/tmp/plane-restore-test.yaml`:
-   - `metadata.namespace: plane-ce-test`
+   - `metadata.namespace: plane-ce-test` — that's it for host targeting.
+     `POD_NAMESPACE` (Downward API) automatically becomes `plane-ce-test`
+     for both containers, so `POSTGRES_HOST` resolves to
+     `plane-app-pgdb.plane-ce-test.svc.cluster.local` with no manual edit.
+     `AWS_S3_ENDPOINT_URL` always comes straight from that namespace's own
+     `plane-app-doc-store-secrets`, so it's correct automatically too.
    - Set `SNAPSHOT_ID` (same value in both the `preflight` initContainer and
      the `restore` container).
    - If the secondary instance is in a **different cluster** (not just a
-     different namespace in the same cluster), the default `POSTGRES_HOST`
-     / `AWS_S3_ENDPOINT_URL` values baked into the scripts
-     (`*.plane-ce.svc.cluster.local`) won't resolve. Add explicit overrides
-     to **both** containers' `env:` lists:
-     ```yaml
-     - name: POSTGRES_HOST
-       value: plane-app-pgdb.plane-ce-test.svc.cluster.local
-     - name: AWS_S3_ENDPOINT_URL
-       value: http://plane-app-minio.plane-ce-test.svc.cluster.local:9000
-     ```
-     (same-cluster/different-namespace restores need this too, just with the
-     new namespace in place of `plane-ce-test` — the scripts default to
-     `plane-ce` specifically, not the namespace they happen to run in.)
+     different namespace in the same cluster), its DNS domain may not be
+     `svc.cluster.local`, or the Postgres/MinIO service names may differ.
+     In that case add explicit `POSTGRES_HOST` / `AWS_S3_ENDPOINT_URL`
+     overrides to **both** containers' `env:` lists instead of relying on
+     the computed default.
    - Credentials (`POSTGRES_USER/PASSWORD/DB`, `AWS_ACCESS_KEY_ID/SECRET_ACCESS_KEY/S3_BUCKET_NAME`)
      still come from that namespace's own `plane-app-pgdb-secrets` /
      `plane-app-doc-store-secrets` via `envFrom` — no changes needed there,

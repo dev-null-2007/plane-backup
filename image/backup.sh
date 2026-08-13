@@ -13,8 +13,12 @@
 #     AWS_S3_ENDPOINT_URL
 #   RESTIC_REPOSITORY, RESTIC_PASSWORD, B2_ACCOUNT_ID, B2_ACCOUNT_KEY
 #
-# Optional env (defaults match the plan-ce chart as of writing, §2):
-#   POSTGRES_HOST (default plane-app-pgdb.plane-ce.svc.cluster.local)
+# Optional env:
+#   POD_NAMESPACE (via Downward API fieldRef: metadata.namespace) - used to
+#     build the default POSTGRES_HOST below so it targets whichever
+#     namespace this pod actually runs in, not a hardcoded one. Falls back
+#     to "plane-ce" if unset (e.g. a manually-run debug pod).
+#   POSTGRES_HOST (default plane-app-pgdb.<POD_NAMESPACE>.svc.cluster.local)
 #   POSTGRES_PORT (default 5432)
 #   RESTIC_HOST (default plane-ce-prod)
 #   RESTIC_KEEP_DAILY / RESTIC_KEEP_WEEKLY / RESTIC_KEEP_MONTHLY
@@ -27,7 +31,7 @@ set -euo pipefail
 : "${AWS_ACCESS_KEY_ID:?}" "${AWS_SECRET_ACCESS_KEY:?}" "${AWS_S3_BUCKET_NAME:?}" "${AWS_S3_ENDPOINT_URL:?}"
 : "${RESTIC_REPOSITORY:?}" "${RESTIC_PASSWORD:?}" "${B2_ACCOUNT_ID:?}" "${B2_ACCOUNT_KEY:?}"
 
-POSTGRES_HOST="${POSTGRES_HOST:-plane-app-pgdb.plane-ce.svc.cluster.local}"
+POSTGRES_HOST="${POSTGRES_HOST:-plane-app-pgdb.${POD_NAMESPACE:-plane-ce}.svc.cluster.local}"
 POSTGRES_PORT="${POSTGRES_PORT:-5432}"
 RESTIC_HOST="${RESTIC_HOST:-plane-ce-prod}"
 RESTIC_KEEP_DAILY="${RESTIC_KEEP_DAILY:-14}"

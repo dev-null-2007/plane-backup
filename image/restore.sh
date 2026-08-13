@@ -11,7 +11,7 @@ set -euo pipefail
 : "${AWS_ACCESS_KEY_ID:?}" "${AWS_SECRET_ACCESS_KEY:?}" "${AWS_S3_BUCKET_NAME:?}" "${AWS_S3_ENDPOINT_URL:?}"
 : "${RESTIC_REPOSITORY:?}" "${RESTIC_PASSWORD:?}" "${B2_ACCOUNT_ID:?}" "${B2_ACCOUNT_KEY:?}"
 
-POSTGRES_HOST="${POSTGRES_HOST:-plane-app-pgdb.plane-ce.svc.cluster.local}"
+POSTGRES_HOST="${POSTGRES_HOST:-plane-app-pgdb.${POD_NAMESPACE:-plane-ce}.svc.cluster.local}"
 POSTGRES_PORT="${POSTGRES_PORT:-5432}"
 RESTIC_HOST="${RESTIC_HOST:-plane-ce-prod}"
 SNAPSHOT_ID="${SNAPSHOT_ID:-latest}"

@@ -20,10 +20,16 @@
 # This restores into the plane-app-pgdb-secrets / plane-app-doc-store-secrets
 # already present in this namespace (i.e. a fresh plane-app install that has
 # already run its own db/bucket init — this Job never creates them). To
-# restore into a different install (e.g. a different namespace or cluster),
-# either apply this in that install's namespace, or override POSTGRES_HOST /
-# AWS_S3_ENDPOINT_URL (etc.) with explicit `env:` entries instead of relying
-# on the secretRef defaults.
+# restore into a different install, set `metadata.namespace` below (and
+# `spec.template.spec.*.env[POD_NAMESPACE]`, via the Downward API, follows
+# automatically) — POSTGRES_HOST defaults to
+# plane-app-pgdb.<that namespace>.svc.cluster.local, so no manual host
+# override is needed for a same-cluster, different-namespace restore.
+# AWS_S3_ENDPOINT_URL always comes from that namespace's own
+# plane-app-doc-store-secrets, so it's correct automatically too. You only
+# need explicit POSTGRES_HOST/AWS_S3_ENDPOINT_URL `env:` overrides for a
+# genuinely cross-cluster restore (different cluster DNS domain, or
+# non-default service names).
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -54,6 +60,12 @@ spec:
             # that already has data. Preflight aborts otherwise (§7 step 3).
             - name: RESTORE_FORCE
               value: "0"
+            # Lets restore-preflight.sh's POSTGRES_HOST default target this
+            # pod's own namespace instead of a hardcoded one.
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
           volumeMounts:
             - name: scratch
               mountPath: /restore
@@ -72,6 +84,12 @@ spec:
             # Must match the preflight container's SNAPSHOT_ID above.
             - name: SNAPSHOT_ID
               value: "latest"
+            # Lets restore.sh's POSTGRES_HOST default target this pod's own
+            # namespace instead of a hardcoded one.
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
           volumeMounts:
             - name: scratch
               mountPath: /restore

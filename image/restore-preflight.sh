@@ -11,6 +11,10 @@
 # *target* (fresh) install this restore is writing into.
 #
 # Optional env:
+#   POD_NAMESPACE (via Downward API fieldRef: metadata.namespace) - used to
+#     build the default POSTGRES_HOST below so the restore targets whichever
+#     namespace this pod actually runs in, not a hardcoded one. Falls back
+#     to "plane-ce" if unset (e.g. a manually-run debug pod).
 #   SNAPSHOT_ID (default "latest")
 #   RESTORE_FORCE=1 to allow restoring into a non-empty target database
 #   RESTORE_SCRATCH_DIR (default /restore) - disk space is checked here
@@ -21,7 +25,7 @@ set -uo pipefail
 : "${AWS_ACCESS_KEY_ID:?}" "${AWS_SECRET_ACCESS_KEY:?}" "${AWS_S3_BUCKET_NAME:?}" "${AWS_S3_ENDPOINT_URL:?}"
 : "${RESTIC_REPOSITORY:?}" "${RESTIC_PASSWORD:?}" "${B2_ACCOUNT_ID:?}" "${B2_ACCOUNT_KEY:?}"
 
-POSTGRES_HOST="${POSTGRES_HOST:-plane-app-pgdb.plane-ce.svc.cluster.local}"
+POSTGRES_HOST="${POSTGRES_HOST:-plane-app-pgdb.${POD_NAMESPACE:-plane-ce}.svc.cluster.local}"
 POSTGRES_PORT="${POSTGRES_PORT:-5432}"
 RESTIC_HOST="${RESTIC_HOST:-plane-ce-prod}"
 SNAPSHOT_ID="${SNAPSHOT_ID:-latest}"
