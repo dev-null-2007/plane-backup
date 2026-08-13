@@ -4,7 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository state
 
-Implementation is in progress. `image/` has the backup/restore container image and its three driver scripts; `setup-backup-secret.sh` (repo root) creates/rotates the B2/restic credentials Secret. The k8s manifests (Namespace, Secret, CronJob, restore Job) are not yet written — see §11 of `PLAN_plane_backup.md` for the live checklist.
+Implementation is in progress:
+- `image/` — the backup/restore container image and its three driver scripts (`backup.sh`, `restore-preflight.sh`, `restore.sh`).
+- `setup-backup-secret.sh` (repo root) — creates/rotates the `plane-backup-restic-creds` Secret. Run manually; never generates a manifest to commit.
+- `manifests/cronjob.yaml` — the nightly backup CronJob, applied as-is.
+- `manifests/restore-job.yaml` — a restore Job **template**, not applied as-is: copy it per restore attempt, set `SNAPSHOT_ID`/`RESTORE_FORCE`, then `kubectl create -f` the copy (see comments in the file).
+
+None of the manifests have been applied against a real cluster yet — there's no kubectl/cluster access from this environment, so that verification (plan §11's remaining items: bootstrap the Secret, trigger the CronJob once, do a full restore drill including the non-empty-target guard) is still outstanding. See §11 of `PLAN_plane_backup.md` for the live checklist.
 
 ### Building and testing the image
 

@@ -360,10 +360,18 @@ confidence). Options, cheapest first:
       revised decision. Validated: fails fast with no partial secret when
       required args are missing, and the `create --dry-run=client -o yaml |
       apply` idempotent pattern was exercised against a stub `kubectl`.
-- [ ] Write k8s manifests: Secret (created by script, not committed),
-      CronJob, restore Job (using `image/restore-preflight.sh` as
-      initContainer and `image/restore.sh` as the main container), any RBAC
-      if scope changes later.
+- [x] Write k8s manifests (`manifests/cronjob.yaml`, `manifests/restore-job.yaml`;
+      Secret is intentionally not a committed manifest — created only by
+      `setup-backup-secret.sh`). No RBAC needed (plan §5.5: the jobs talk to
+      Postgres/MinIO via Service ClusterIPs + creds, not the k8s API).
+      `restore-job.yaml` is a template — copied and edited per restore
+      attempt (`generateName`, not a fixed name), matching the plan's "plain
+      Job manifest applied directly" option from §7 rather than the
+      `--from=cronjob` trick, since a Job needs no CronJob wrapper to serve
+      as a reusable template. Structurally validated (YAML parses, secretRefs
+      match, preflight/restore SNAPSHOT_ID stay in sync) but **not yet
+      applied against a real cluster** — no kubectl/cluster access from this
+      environment.
 - [ ] Create the B2 bucket + application key (scoped to that bucket only,
       not a master key) in the Backblaze console.
 - [ ] Run `setup-backup-secret.sh` once to bootstrap.

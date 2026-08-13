@@ -1,0 +1,55 @@
+# Nightly backup CronJob (PLAN_plane_backup.md §5, §6).
+#
+# Runs in the plane-ce namespace (co-located with what it backs up, per the
+# plan's revised §5 decision — cross-namespace secretRef isn't possible, so
+# this avoids mirroring plane-app-pgdb-secrets / plane-app-doc-store-secrets
+# into a separate namespace).
+#
+# Prerequisites before applying:
+#   - ./setup-backup-secret.sh has been run at least once (creates
+#     plane-backup-restic-creds in this namespace).
+#   - `image` below points at a plane-backup image actually reachable from
+#     the cluster (this default assumes MicroK8s's built-in registry at
+#     localhost:32000, per plan §5.3 — change it to match your registry).
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: plane-backup
+  namespace: plane-ce
+spec:
+  schedule: "0 6 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: plane-backup
+              image: localhost:32000/plane-backup:latest
+              command: ["/usr/local/bin/backup.sh"]
+              envFrom:
+                - secretRef:
+                    name: plane-backup-restic-creds
+                - secretRef:
+                    name: plane-app-pgdb-secrets
+                - secretRef:
+                    name: plane-app-doc-store-secrets
+              volumeMounts:
+                - name: scratch
+                  mountPath: /backup
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+          volumes:
+            # No sizeLimit set: bounded only by node disk. Add one
+            # (e.g. `sizeLimit: 5Gi`) once you know the real data size.
+            - name: scratch
+              emptyDir: {}

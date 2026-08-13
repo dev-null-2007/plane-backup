@@ -1,0 +1,80 @@
+# Restore Job template (PLAN_plane_backup.md §7). Not applied as-is — copy
+# this file per restore attempt, edit the env vars below, then create it:
+#
+#   cp manifests/restore-job.yaml /tmp/plane-restore-$(date +%s).yaml
+#   $EDITOR /tmp/plane-restore-*.yaml   # set SNAPSHOT_ID / RESTORE_FORCE
+#   kubectl create -f /tmp/plane-restore-*.yaml
+#   kubectl get jobs -n plane-ce -w
+#   kubectl logs -f job/<generated-name> -n plane-ce -c preflight
+#   kubectl logs -f job/<generated-name> -n plane-ce -c restore
+#
+# `metadata.generateName` means each `kubectl create -f` gets a fresh,
+# unique Job name, so this file can be reused for multiple restore attempts
+# without editing the name by hand.
+#
+# The initContainer (preflight) runs every check in
+# image/restore-preflight.sh (§7 phase 1) and must exit 0 before the main
+# `restore` container starts; if it fails, nothing in Postgres/MinIO is
+# touched. Both containers must be pointed at the same SNAPSHOT_ID.
+#
+# This restores into the plane-app-pgdb-secrets / plane-app-doc-store-secrets
+# already present in this namespace (i.e. a fresh plane-app install that has
+# already run its own db/bucket init — this Job never creates them). To
+# restore into a different install (e.g. a different namespace or cluster),
+# either apply this in that install's namespace, or override POSTGRES_HOST /
+# AWS_S3_ENDPOINT_URL (etc.) with explicit `env:` entries instead of relying
+# on the secretRef defaults.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  generateName: plane-restore-
+  namespace: plane-ce
+spec:
+  backoffLimit: 0 # one-shot: don't auto-retry a restore
+  template:
+    spec:
+      restartPolicy: Never
+      initContainers:
+        - name: preflight
+          image: localhost:32000/plane-backup:latest
+          command: ["/usr/local/bin/restore-preflight.sh"]
+          envFrom:
+            - secretRef:
+                name: plane-backup-restic-creds
+            - secretRef:
+                name: plane-app-pgdb-secrets
+            - secretRef:
+                name: plane-app-doc-store-secrets
+          env:
+            # "latest" or a specific restic snapshot ID (see
+            # `restic snapshots --host plane-ce-prod`).
+            - name: SNAPSHOT_ID
+              value: "latest"
+            # Set to "1" only if you intend to overwrite a target database
+            # that already has data. Preflight aborts otherwise (§7 step 3).
+            - name: RESTORE_FORCE
+              value: "0"
+          volumeMounts:
+            - name: scratch
+              mountPath: /restore
+      containers:
+        - name: restore
+          image: localhost:32000/plane-backup:latest
+          command: ["/usr/local/bin/restore.sh"]
+          envFrom:
+            - secretRef:
+                name: plane-backup-restic-creds
+            - secretRef:
+                name: plane-app-pgdb-secrets
+            - secretRef:
+                name: plane-app-doc-store-secrets
+          env:
+            # Must match the preflight container's SNAPSHOT_ID above.
+            - name: SNAPSHOT_ID
+              value: "latest"
+          volumeMounts:
+            - name: scratch
+              mountPath: /restore
+      volumes:
+        - name: scratch
+          emptyDir: {}
