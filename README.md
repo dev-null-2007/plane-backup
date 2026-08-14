@@ -215,6 +215,64 @@ restic snapshots --host plane-ce-prod   # find the short ID you want
 Set `SNAPSHOT_ID` in both containers of the copied Job manifest to that ID
 instead of `latest`.
 
+## Debugging: interactive shell pod
+
+For anything the backup/restore Jobs don't cover directly — inspecting
+Postgres by hand, checking what's actually in a MinIO bucket, running
+`restic` commands ad hoc — `manifests/plane-backup-shell.yaml` gives you a
+throwaway pod with all the same tools (`psql`, `mc`, `restic`) and
+credentials (`plane-app-pgdb-secrets`, `plane-app-doc-store-secrets`,
+`plane-backup-restic-creds`) already loaded as env vars, so there's nothing
+to look up or type in by hand.
+
+```bash
+kubectl apply -f manifests/plane-backup-shell.yaml   # defaults to plane-ce (prod)
+kubectl -n plane-ce exec -it plane-backup-shell -- bash
+```
+
+Once inside:
+
+**Postgres** — `POSTGRES_USER`/`POSTGRES_PASSWORD`/`POSTGRES_DB` are already
+set:
+```bash
+PGPASSWORD="$POSTGRES_PASSWORD" psql -h plane-app-pgdb.plane-ce.svc.cluster.local -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+```
+(swap the `-h` value's namespace to match wherever you applied the pod, e.g.
+`plane-app-pgdb.plane2-ce.svc.cluster.local` for a secondary instance.)
+
+**MinIO** — `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`/`AWS_S3_BUCKET_NAME`/`AWS_S3_ENDPOINT_URL`
+are already set:
+```bash
+mc alias set planeminio "$AWS_S3_ENDPOINT_URL" "$AWS_ACCESS_KEY_ID" "$AWS_SECRET_ACCESS_KEY"
+mc ls --recursive planeminio/"$AWS_S3_BUCKET_NAME"
+```
+
+**restic** — `RESTIC_REPOSITORY`/`RESTIC_PASSWORD`/`B2_ACCOUNT_ID`/`B2_ACCOUNT_KEY`
+are already set:
+```bash
+restic snapshots --host plane-ce-prod
+restic ls <snapshot-id> --host plane-ce-prod   # list every file in a snapshot
+```
+
+To point the pod at a different namespace (e.g. a secondary/test instance
+instead of prod), either edit `metadata.namespace` in a copy of the file
+before applying, or just re-apply with `kubectl apply -f
+manifests/plane-backup-shell.yaml -n <namespace>` (the `-n` flag overrides
+the manifest's namespace).
+
+This pod can't be `exec`'d into once it stops (`sleep 3600` — same
+"completed pods can't be exec'd into" issue as any other pod), and it's a
+real credentialed pod sitting around for up to an hour, so clean it up when
+you're done rather than leaving it:
+```bash
+kubectl -n plane-ce delete pod plane-backup-shell
+```
+
+This is a full-access shell against whichever Postgres it's pointed at —
+**be careful running anything against prod**. Stick to read-only queries
+(`select`) unless you specifically mean to change data and have a recent
+backup to fall back on.
+
 ## Troubleshooting
 
 - **Restore Job's `restore` container shows `status: Error` with no useful

@@ -1,3 +1,9 @@
+# Throwaway debug pod with psql/mc/restic and the same credentials as the
+# backup CronJob/restore Job already loaded as env vars. See README.md's
+# "Debugging: interactive shell pod" section for usage.
+#
+# `kubectl apply -f manifests/plane-backup-shell.yaml -n <namespace>`
+# overrides the namespace below without editing this file.
 apiVersion: v1
 kind: Pod
 metadata:
