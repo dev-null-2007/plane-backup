@@ -48,7 +48,7 @@ QUERY = "select relname, n_live_tup from pg_stat_user_tables order by n_live_tup
 
 def ensure_pod(namespace: str, image: str) -> None:
     existing = subprocess.run(
-        ["kubectl", "-n", namespace, "get", "pod", POD_NAME, "-o", "jsonpath={.status.phase}"],
+        ["microk8s", "kubectl", "-n", namespace, "get", "pod", POD_NAME, "-o", "jsonpath={.status.phase}"],
         text=True,
         capture_output=True,
     )
@@ -58,9 +58,9 @@ def ensure_pod(namespace: str, image: str) -> None:
 
     manifest = POD_MANIFEST_TEMPLATE.format(pod_name=POD_NAME, namespace=namespace, image=image)
     print(f"[check_table_rows] creating pod {POD_NAME} in {namespace}", file=sys.stderr)
-    subprocess.run(["kubectl", "apply", "-f", "-"], input=manifest, text=True, check=True)
+    subprocess.run(["microk8s", "kubectl", "apply", "-f", "-"], input=manifest, text=True, check=True)
     subprocess.run(
-        ["kubectl", "-n", namespace, "wait", "--for=condition=Ready", f"pod/{POD_NAME}", "--timeout=60s"],
+        ["microk8s", "kubectl", "-n", namespace, "wait", "--for=condition=Ready", f"pod/{POD_NAME}", "--timeout=60s"],
         check=True,
     )
 
@@ -73,7 +73,7 @@ def query_rows(namespace: str, limit: int) -> str:
         f'-U "$POSTGRES_USER" -d "$POSTGRES_DB" -tA -F"," -c "{sql}"'
     )
     result = subprocess.run(
-        ["kubectl", "-n", namespace, "exec", POD_NAME, "--", "bash", "-c", remote_script],
+        ["microk8s", "kubectl", "-n", namespace, "exec", POD_NAME, "--", "bash", "-c", remote_script],
         text=True,
         capture_output=True,
     )
@@ -84,7 +84,7 @@ def query_rows(namespace: str, limit: int) -> str:
 
 
 def cleanup_pod(namespace: str) -> None:
-    subprocess.run(["kubectl", "-n", namespace, "delete", "pod", POD_NAME, "--ignore-not-found"], check=True)
+    subprocess.run(["microk8s", "kubectl", "-n", namespace, "delete", "pod", POD_NAME, "--ignore-not-found"], check=True)
 
 
 def main() -> None:
