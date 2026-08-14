@@ -217,6 +217,21 @@ instead of `latest`.
 
 ## Troubleshooting
 
+- **Restore Job's `restore` container shows `status: Error` with no useful
+  log output, stopping right after `pg_restore` starts**: check the
+  container's actual exit code (`kubectl get pod <pod> -o
+  jsonpath='{.status.containerStatuses[?(@.name=="restore")].state.terminated}'`
+  — note `.lastState` is always empty here since `restartPolicy: Never`
+  pods never restart; use `.state.terminated` instead). Exit code `141`
+  (`128 + SIGPIPE`) means a container-runtime log pipe hiccup killed
+  whichever command was writing to stdout at the time — observed in
+  testing right as `pg_restore` finished, before the MinIO mirror step
+  ever ran, even though the actual Postgres restore had completed
+  correctly. All three driver scripts now `trap '' PIPE` so this can't
+  silently kill them, and `restore.sh` additionally buffers `pg_restore`'s
+  output to a local file first so its diagnostics always get printed. If
+  you still see this on an image built before that fix, rebuild and push
+  the image, then re-copy `restore-job.yaml` before retrying.
 - **Preflight fails with a list of problems**: that's the point — it
   collects every failing check before exiting so you see the whole picture
   in one `kubectl logs`, rather than fixing one thing at a time. Fix all

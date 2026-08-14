@@ -26,6 +26,10 @@
 # header for how the excluded-table list was derived.
 
 set -uo pipefail
+# See image/restore.sh for why: a container-runtime log pipe hiccup mid-
+# command can otherwise SIGPIPE-kill whichever command is writing to
+# stdout/stderr at the time, with no diagnostic output.
+trap '' PIPE
 
 : "${POSTGRES_USER:?}" "${POSTGRES_PASSWORD:?}" "${POSTGRES_DB:?}"
 : "${AWS_ACCESS_KEY_ID:?}" "${AWS_SECRET_ACCESS_KEY:?}" "${AWS_S3_BUCKET_NAME:?}" "${AWS_S3_ENDPOINT_URL:?}"

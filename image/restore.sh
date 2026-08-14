@@ -6,6 +6,13 @@
 # Required/optional env: same as restore-preflight.sh.
 
 set -euo pipefail
+# Ignore SIGPIPE: nothing here relies on it, and a container-runtime log
+# pipe hiccup mid-command (observed in testing: pg_restore killed with
+# exit 141 - 128+SIGPIPE - right as it finished, aborting the script
+# before the MinIO mirror step ever ran) would otherwise silently kill
+# whichever command happened to be writing to stdout/stderr at the time,
+# with no diagnostic output at all.
+trap '' PIPE
 
 : "${POSTGRES_USER:?}" "${POSTGRES_PASSWORD:?}" "${POSTGRES_DB:?}"
 : "${AWS_ACCESS_KEY_ID:?}" "${AWS_SECRET_ACCESS_KEY:?}" "${AWS_S3_BUCKET_NAME:?}" "${AWS_S3_ENDPOINT_URL:?}"
@@ -27,10 +34,23 @@ DUMP_FILE=$(find "${RESTORE_SCRATCH_DIR}" -type f -name plane.dump | head -1)
 : "${DUMP_FILE:?no plane.dump found under ${RESTORE_SCRATCH_DIR} after restic restore}"
 
 echo "[restore] 2/3 pg_restore ${DUMP_FILE} -> ${POSTGRES_DB}@${POSTGRES_HOST}:${POSTGRES_PORT}"
+# Buffered to a local file rather than writing straight to the container's
+# stdout: pg_restore's own writes never touch the (occasionally flaky)
+# container-log pipe while it's running, and we always get full output
+# printed afterward, on both success and failure, instead of losing
+# whatever hadn't been flushed yet if something downstream breaks.
+PG_RESTORE_LOG="$(mktemp)"
+PG_RESTORE_RC=0
 PGPASSWORD="${POSTGRES_PASSWORD}" pg_restore --clean --if-exists \
   -h "${POSTGRES_HOST}" -p "${POSTGRES_PORT}" \
   -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" \
-  "${DUMP_FILE}"
+  "${DUMP_FILE}" >"${PG_RESTORE_LOG}" 2>&1 || PG_RESTORE_RC=$?
+cat "${PG_RESTORE_LOG}" || true
+rm -f "${PG_RESTORE_LOG}"
+if [ "${PG_RESTORE_RC}" -ne 0 ]; then
+  echo "[restore] pg_restore failed (exit ${PG_RESTORE_RC}) - see output above" >&2
+  exit "${PG_RESTORE_RC}"
+fi
 
 MINIO_SRC_DIR=$(find "${RESTORE_SCRATCH_DIR}" -type d -path '*/minio/*' -mindepth 1 -maxdepth 10 | head -1)
 : "${MINIO_SRC_DIR:?no minio object directory found under ${RESTORE_SCRATCH_DIR} after restic restore}"
